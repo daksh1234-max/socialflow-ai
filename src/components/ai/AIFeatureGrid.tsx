@@ -79,6 +79,22 @@ const FEATURES: Feature[] = [
     icon: TrendingUp,
     color: 'bg-rose-500',
     type: 'trending_topics'
+  },
+  {
+    id: '7',
+    title: 'Video Scripts',
+    description: 'Viral Reel/TikTok scripts',
+    icon: Sparkles,
+    color: 'bg-cyan-500',
+    type: 'video_script'
+  },
+  {
+    id: '8',
+    title: 'Smart Bio',
+    description: 'Optimize your profile',
+    icon: Zap,
+    color: 'bg-orange-500',
+    type: 'bio'
   }
 ];
 

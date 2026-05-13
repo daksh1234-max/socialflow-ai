@@ -4,6 +4,26 @@ import { generateHFText } from './huggingface';
 import { generateImage } from './pollinations';
 import * as Prompts from './prompts';
 import { AIResult } from './openrouter';
+import { aiQueue } from './queue';
+import * as Haptics from 'expo-haptics';
+
+const PLATFORM_PROFILES: Record<string, { systemPrompt: string, maxTokens: number, temperature: number }> = {
+  twitter: {
+    systemPrompt: "You are a viral Twitter content creator. Write concise, punchy posts under 280 characters. Use hooks, thread markers (1/3, 2/3) if needed, trending hashtags, and strong CTAs. Avoid corporate jargon.",
+    maxTokens: 150,
+    temperature: 0.8
+  },
+  facebook: {
+    systemPrompt: "You are an engaging Facebook community manager. Write warm, conversational posts that spark discussion. Use emojis naturally, ask questions, and include a clear call-to-action. Length: 1-3 short paragraphs.",
+    maxTokens: 300,
+    temperature: 0.7
+  },
+  linkedin: {
+    systemPrompt: "You are a senior LinkedIn thought leader. Write professional, insightful posts with a strong opening hook. Use line breaks for readability, include data or personal experience, and end with a thoughtful question. Length: 3-8 paragraphs. Tone: authoritative but approachable.",
+    maxTokens: 800,
+    temperature: 0.6
+  }
+};
 
 /**
  * Generate a social media caption using the AI service.
@@ -18,7 +38,13 @@ export async function generateCaption(params: {
   includeCTA?: boolean;
 }): Promise<AIResult> {
   const prompt = Prompts.buildCaptionPrompt(params);
-  return generateWithFallback(prompt);
+  const profile = PLATFORM_PROFILES[params.platform.toLowerCase()] || {
+    systemPrompt: "You are a helpful social media manager.",
+    maxTokens: 500,
+    temperature: 0.7
+  };
+
+  return aiQueue.add(() => generateWithFallback(prompt, profile));
 }
 
 /** Generate hashtags for a post */
@@ -29,7 +55,7 @@ export async function generateHashtags(params: {
   trending?: boolean;
 }): Promise<AIResult> {
   const prompt = Prompts.buildHashtagPrompt(params);
-  return generateWithFallback(prompt);
+  return aiQueue.add(() => generateWithFallback(prompt));
 }
 
 /** Generate a hook (opening line) */
@@ -75,12 +101,36 @@ export async function generateSocialImage(params: {
 }
 
 /** Placeholder for best posting times – implementation TBD */
-export async function getBestPostingTimes(_params: { postHistory: any; platform: string }): Promise<any> {
-  // Future implementation could analyse postHistory with a model.
-  throw new Error('Not implemented yet');
+export async function getBestPostingTimes(params: { postHistory: any[]; platform: string }): Promise<AIResult> {
+  // Convert history to string for the prompt
+  const historyString = JSON.stringify(params.postHistory.slice(-10)); // Last 10 posts for context
+  const prompt = Prompts.buildBestTimePrompt({ postHistory: historyString, platform: params.platform });
+  return aiQueue.add(() => generateWithFallback(prompt));
 }
 
 /** Placeholder for trending topics – implementation TBD */
-export async function getTrendingTopics(_params: { niche: string; region?: string }): Promise<any> {
-  throw new Error('Not implemented yet');
+export async function getTrendingTopics(params: { niche: string; region?: string }): Promise<AIResult> {
+  const prompt = Prompts.buildTrendingPrompt(params);
+  return generateWithFallback(prompt);
+}
+
+/** Generate a video script */
+export async function generateVideoScript(params: {
+  topic: string;
+  duration: '15s' | '30s' | '60s';
+  style: 'educational' | 'entertaining' | 'storytelling';
+}): Promise<AIResult> {
+  const prompt = Prompts.buildVideoScriptPrompt(params);
+  return generateWithFallback(prompt);
+}
+
+/** Generate social media bios */
+export async function generateBio(params: {
+  name: string;
+  niche: string;
+  keywords: string;
+  platform: string;
+}): Promise<AIResult> {
+  const prompt = Prompts.buildBioPrompt(params);
+  return generateWithFallback(prompt);
 }

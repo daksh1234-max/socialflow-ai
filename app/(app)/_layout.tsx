@@ -3,10 +3,12 @@ import { Home, PlusCircle, Calendar as CalendarIcon, BarChart2, User } from 'luc
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useNotifications } from '@/src/hooks/useNotifications';
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
   const { session } = useAuth(); // Ensures the session state is tracking in standard subtrees
+  useNotifications(); // Sets up Expo Push Notifications and listens for incoming alerts
 
   return (
     <Tabs

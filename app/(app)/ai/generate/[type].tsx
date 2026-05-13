@@ -22,7 +22,9 @@ export default function DynamicGeneratorScreen() {
     rewrite: 'Platform Rewriter',
     image: 'AI Image Studio',
     best_time: 'Post Timing',
-    trending_topics: 'Trend Analysis'
+    trending_topics: 'Trend Analysis',
+    video_script: 'Video Script Writer',
+    bio: 'Smart Bio Optimizer'
   }[type as string] || 'AI Generator';
 
   return (
@@ -48,7 +50,7 @@ export default function DynamicGeneratorScreen() {
           {type === 'image' ? (
             <AIImageGenerator />
           ) : (
-            <AIGeneratorCard />
+            <AIGeneratorCard type={type as any} />
           )}
         </ScrollView>
       </KeyboardAvoidingView>

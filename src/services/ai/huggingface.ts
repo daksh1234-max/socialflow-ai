@@ -1,5 +1,5 @@
 // src/services/ai/huggingface.ts
-import { MMKV } from 'react-native-mmkv';
+import { storage } from '@/src/lib/storage';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 
@@ -12,11 +12,12 @@ export interface AIResult {
 }
 
 interface GenerateOptions {
+  systemPrompt?: string;
   maxTokens?: number;
   temperature?: number;
 }
 
-const mmkv = new MMKV();
+// storage is now imported from '@/src/lib/storage'
 const MODEL = 'microsoft/Phi-3-mini-4k-instruct';
 const BASE_URL = `https://api-inference.huggingface.co/models/${MODEL}`;
 const API_KEY = process.env.EXPO_PUBLIC_HUGGINGFACE_API_KEY;
@@ -31,13 +32,15 @@ async function callHF(prompt: string, options?: GenerateOptions): Promise<AIResu
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
+  const finalPrompt = options?.systemPrompt ? `System: ${options.systemPrompt}\n\nUser: ${prompt}` : prompt;
+
   const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: options?.maxTokens ?? 1024, temperature: options?.temperature ?? 0.7 } }),
+    body: JSON.stringify({ inputs: finalPrompt, parameters: { max_new_tokens: options?.maxTokens ?? 1024, temperature: options?.temperature ?? 0.7 } }),
     signal: controller.signal,
   });
   clearTimeout(timeoutId);
@@ -54,13 +57,13 @@ async function callHF(prompt: string, options?: GenerateOptions): Promise<AIResu
 export async function generateWithFallback(prompt: string, options?: GenerateOptions): Promise<AIResult> {
   // Check cache first
   const key = await hashPrompt(prompt);
-  const cached = mmkv.getString(key);
+  const cached = storage.getString(key);
   if (cached) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     return { text: cached, modelUsed: MODEL, generationTime: 0, cached: true };
   }
   const result = await callHF(prompt, options);
-  mmkv.set(key, result.text);
+  storage.set(key, result.text);
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   return result;
 }

@@ -1,5 +1,5 @@
 // src/services/ai/openrouter.ts
-import { MMKV } from 'react-native-mmkv';
+import { storage } from '@/src/lib/storage';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 
@@ -15,6 +15,12 @@ export interface AIResult {
 interface GenerateOptions {
   /** Optional abort signal */
   signal?: AbortSignal;
+  /** Platform-specific system prompt */
+  systemPrompt?: string;
+  /** Max tokens to generate */
+  maxTokens?: number;
+  /** Generation temperature */
+  temperature?: number;
 }
 
 // Rate limiter: token bucket allowing 20 requests per minute
@@ -59,7 +65,7 @@ class TokenBucket {
 }
 
 const bucket = new TokenBucket();
-const storage = new MMKV();
+// storage is now imported from '@/src/lib/storage'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODELS_PRIORITY = [
@@ -96,10 +102,18 @@ export async function generateText(
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
   const signal = options?.signal ?? controller.signal;
 
-  const body = {
+  const messages = [];
+  if (options?.systemPrompt) {
+    messages.push({ role: 'system', content: options.systemPrompt });
+  }
+  messages.push({ role: 'user', content: prompt });
+
+  const body: any = {
     model: MODELS_PRIORITY[0], // primary model
-    messages: [{ role: 'user', content: prompt }],
+    messages,
   };
+  if (options?.temperature !== undefined) body.temperature = options.temperature;
+  if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
 
   const headers = {
     'Content-Type': 'application/json',

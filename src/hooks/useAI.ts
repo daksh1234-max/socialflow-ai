@@ -6,6 +6,7 @@ import * as AIService from '../services/ai';
 import { AIResult } from '../services/ai/openrouter';
 import { supabase } from '../services/supabase/client';
 import { useAuth } from './useAuth';
+import { useAuthStore } from '../stores/authStore';
 
 export type AIGenerationType = 
   | 'caption' 
@@ -15,7 +16,9 @@ export type AIGenerationType =
   | 'rewrite' 
   | 'image' 
   | 'best_time' 
-  | 'trending_topics';
+  | 'trending_topics'
+  | 'video_script'
+  | 'bio';
 
 interface UseAIReturn {
   generate: (type: AIGenerationType, params: any) => Promise<AIResult | string>;
@@ -42,7 +45,8 @@ export function useAI(): UseAIReturn {
     clearHistory 
   } = useAIStore();
   
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { decrementCreditsLocally } = useAuthStore();
   const [error, setError] = useState<Error | null>(null);
   const [progress, setProgress] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -78,6 +82,11 @@ export function useAI(): UseAIReturn {
   };
 
   const generate = async (type: AIGenerationType, params: any): Promise<AIResult | string> => {
+    if (profile && profile.ai_credits <= 0) {
+      Alert.alert('Out of Credits', 'You have no AI credits left. Please upgrade your plan to continue generating content.');
+      return Promise.reject(new Error('Out of AI credits'));
+    }
+
     cancel();
     setError(null);
     setGenerating(true);
@@ -123,6 +132,12 @@ export function useAI(): UseAIReturn {
         case 'trending_topics':
           result = await AIService.getTrendingTopics(params);
           break;
+        case 'video_script':
+          result = await AIService.generateVideoScript(params);
+          break;
+        case 'bio':
+          result = await AIService.generateBio(params);
+          break;
         default:
           throw new Error(`Unsupported generation type: ${type}`);
       }
@@ -131,9 +146,15 @@ export function useAI(): UseAIReturn {
       setProgress(100);
 
       // Auto-save to Supabase
-      // Note: We'd ideally want the actual prompt string from the service, 
-      // but for now we'll pass the params as metadata.
       await saveToSupabase(type, JSON.stringify(params), result);
+
+      // Decrement credits
+      if (user) {
+        const { data: success } = await supabase.rpc('decrement_ai_credits', { target_user_id: user.id });
+        if (success) {
+          decrementCreditsLocally();
+        }
+      }
 
       addToHistory(result as any);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

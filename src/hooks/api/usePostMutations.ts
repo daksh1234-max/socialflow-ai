@@ -7,9 +7,9 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ content, platform, scheduledFor }: { content: string, platform: string, scheduledFor: Date | null }) => {
+    mutationFn: async ({ content, platform, scheduledFor, mediaUrl }: { content: string, platform: string, scheduledFor: Date | null, mediaUrl?: string | null }) => {
       if (!user) throw new Error("Not logged in");
-      return DatabaseService.createPost(user.id, content, platform, scheduledFor);
+      return DatabaseService.createPost(user.id, content, platform, scheduledFor, mediaUrl ? [mediaUrl] : []);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recentPosts', user?.id] });

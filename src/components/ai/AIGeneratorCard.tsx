@@ -17,8 +17,10 @@ import * as Haptics from 'expo-haptics';
 import { cn } from '@/src/lib/utils';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
-import { useAI } from '@/src/hooks/useAI';
+import { useAI, AIGenerationType } from '@/src/hooks/useAI';
 import { AIStreamingText } from './AIStreamingText';
+import { usePostStore } from '@/src/stores/postStore';
+import { useRouter } from 'expo-router';
 
 const PLATFORMS = [
   { id: 'instagram', icon: Instagram, label: 'Instagram' },
@@ -30,7 +32,11 @@ const PLATFORMS = [
 const TONES = ['Professional', 'Casual', 'Witty', 'Inspirational', 'Bold'];
 const LENGTHS = ['Short', 'Medium', 'Long'];
 
-export function AIGeneratorCard() {
+interface AIGeneratorCardProps {
+  type?: AIGenerationType;
+}
+
+export function AIGeneratorCard({ type = 'caption' }: AIGeneratorCardProps) {
   const [topic, setTopic] = useState('');
   const [platform, setPlatform] = useState('instagram');
   const [tone, setTone] = useState('Professional');
@@ -38,6 +44,8 @@ export function AIGeneratorCard() {
   const [showResult, setShowResult] = useState(false);
 
   const { generate, regenerate, isGenerating, lastResult, error, cancel } = useAI();
+  const { setDraft } = usePostStore();
+  const router = useRouter();
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
@@ -46,13 +54,27 @@ export function AIGeneratorCard() {
     setShowResult(true);
     
     try {
-      await generate('caption', {
-        topic,
-        tone: tone.toLowerCase(),
-        platform,
-        length: length.toLowerCase(),
-        includeCTA: true
-      });
+      let params: any = { topic };
+      
+      if (type === 'caption') {
+        params = { topic, tone: tone.toLowerCase(), platform, length: length.toLowerCase(), includeCTA: true };
+      } else if (type === 'hashtags') {
+        params = { topic, count: 15, niche: topic, trending: true };
+      } else if (type === 'hook') {
+        params = { topic, style: tone.toLowerCase() };
+      } else if (type === 'cta') {
+        params = { goal: topic, tone: tone.toLowerCase(), platform };
+      } else if (type === 'rewrite') {
+        params = { content: topic, fromPlatform: 'any', toPlatform: platform, tone: tone.toLowerCase() };
+      } else if (type === 'video_script') {
+        params = { topic, duration: length === 'Short' ? '15s' : length === 'Medium' ? '30s' : '60s', style: tone === 'Professional' ? 'educational' : 'entertaining' };
+      } else if (type === 'bio') {
+        params = { name: 'User', niche: topic, keywords: topic, platform };
+      } else if (type === 'best_time' || type === 'trending_topics') {
+        params = { niche: topic, platform, postHistory: [] };
+      }
+
+      await generate(type, params);
     } catch (e) {
       console.error(e);
     }
@@ -66,13 +88,39 @@ export function AIGeneratorCard() {
     }
   };
 
+  const handleUse = () => {
+    const text = typeof lastResult === 'string' ? lastResult : lastResult?.text;
+    if (text) {
+      setDraft({ 
+        content: text, 
+        platform: ['caption', 'cta', 'rewrite', 'bio'].includes(type) ? platform : 'Twitter' 
+      });
+      router.push('/(app)/create');
+    }
+  };
+
+  const showPlatform = ['caption', 'cta', 'rewrite', 'bio'].includes(type);
+  const showTone = ['caption', 'hook', 'cta', 'rewrite', 'video_script'].includes(type);
+  const showLength = ['caption', 'video_script'].includes(type);
+
+  const getTopicLabel = () => {
+    switch(type) {
+      case 'rewrite': return 'Paste content to rewrite';
+      case 'hashtags': return 'What is your niche or topic?';
+      case 'cta': return 'What is your goal? (e.g. Sign up, Buy now)';
+      case 'bio': return 'Describe yourself or your business';
+      case 'video_script': return 'What is the video about?';
+      default: return "What's the topic?";
+    }
+  };
+
   return (
     <GlassCard className="m-4 bg-surface/70 backdrop-blur-xl">
       <View className="mb-4">
-        <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">What's the topic?</Text>
+        <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">{getTopicLabel()}</Text>
         <TextInput
           className="bg-background/50 text-textPrimary p-4 rounded-2xl border border-white/5 min-h-[100px]"
-          placeholder="Enter a topic or describe your post..."
+          placeholder="Enter details here..."
           placeholderTextColor="#64748b"
           multiline
           numberOfLines={3}
@@ -82,7 +130,7 @@ export function AIGeneratorCard() {
         />
       </View>
 
-      <View className="mb-4">
+      {showPlatform && (
         <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">Platform</Text>
         <View className="flex-row justify-between">
           {PLATFORMS.map((p) => (
@@ -101,11 +149,12 @@ export function AIGeneratorCard() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      )}
 
-      <View className="mb-4">
-        <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">Tone</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+      {showTone && (
+        <View className="mb-4">
+          <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">Tone / Style</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
           {TONES.map((t) => (
             <TouchableOpacity
               key={t}
@@ -124,11 +173,12 @@ export function AIGeneratorCard() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
+      )}
 
-      <View className="mb-6">
-        <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">Length</Text>
-        <View className="flex-row bg-background/30 rounded-xl p-1 border border-white/5">
+      {showLength && (
+        <View className="mb-6">
+          <Text className="text-textSecondary text-xs font-bold uppercase mb-2 ml-1">Length</Text>
+          <View className="flex-row bg-background/30 rounded-xl p-1 border border-white/5">
           {LENGTHS.map((l) => (
             <TouchableOpacity
               key={l}
@@ -147,7 +197,7 @@ export function AIGeneratorCard() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      )}
 
       <Button
         onPress={handleGenerate}
@@ -203,7 +253,7 @@ export function AIGeneratorCard() {
                     <TouchableOpacity className="p-2 bg-surfaceHighlight rounded-lg border border-white/10">
                       <Heart size={18} color="#94A3B8" />
                     </TouchableOpacity>
-                    <Button size="sm" className="bg-indigo-600 px-4" icon={<Send size={14} color="#fff" />}>
+                    <Button size="sm" className="bg-indigo-600 px-4" icon={<Send size={14} color="#fff" />} onPress={handleUse}>
                       Use
                     </Button>
                   </View>

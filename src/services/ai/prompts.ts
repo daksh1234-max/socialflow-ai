@@ -104,3 +104,24 @@ export function buildTrendingPrompt({ niche, region }: TrendingPromptParams): st
   const regionPart = region ? ` in ${region}` : '';
   return `List the current trending topics for the niche "${niche}"${regionPart}. Provide short descriptions.`;
 }
+
+export interface VideoScriptPromptParams {
+  topic: string;
+  duration: '15s' | '30s' | '60s';
+  style: 'educational' | 'entertaining' | 'storytelling';
+}
+
+export function buildVideoScriptPrompt({ topic, duration, style }: VideoScriptPromptParams): string {
+  return `Write a ${duration} ${style} video script for a Reel/TikTok about "${topic}". Include visual cues and spoken dialog.`;
+}
+
+export interface BioPromptParams {
+  name: string;
+  niche: string;
+  keywords: string;
+  platform: string;
+}
+
+export function buildBioPrompt({ name, niche, keywords, platform }: BioPromptParams): string {
+  return `Write 3 different ${platform} bios for ${name} in the ${niche} niche. Keywords to include: ${keywords}. Make them professional yet engaging.`;
+}
