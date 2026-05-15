@@ -1,6 +1,5 @@
-// src/services/ai/openrouter.ts
 import { storage } from '@/src/lib/storage';
-import * as Crypto from 'expo-crypto';
+import CryptoJS from 'crypto-js';
 import * as Haptics from 'expo-haptics';
 
 // Types
@@ -70,8 +69,9 @@ const bucket = new TokenBucket();
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODELS_PRIORITY = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-2-9b-it:free',
-  'mistralai/mistral-7b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+  'google/gemma-4-31b-it:free',
+  'qwen/qwen3-coder:free'
 ];
 
 export async function generateText(
@@ -83,10 +83,7 @@ export async function generateText(
 
   // Compute cache key
   const cacheKeyRaw = `${prompt}`;
-  const cacheKeyHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    cacheKeyRaw,
-  );
+  const cacheKeyHash = CryptoJS.SHA256(cacheKeyRaw).toString();
   const cachedData = storage.getString(cacheKeyHash);
   if (cachedData) {
     const parsed: AIResult = JSON.parse(cachedData);
@@ -108,25 +105,23 @@ export async function generateText(
   }
   messages.push({ role: 'user', content: prompt });
 
-  const body: any = {
-    model: MODELS_PRIORITY[0], // primary model
-    messages,
-  };
-  if (options?.temperature !== undefined) body.temperature = options.temperature;
-  if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
-
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${process.env.EXPO_PUBLIC_OPENROUTER_API_KEY}`,
     'HTTP-Referer': 'https://socialflow.app',
   } as Record<string, string>;
 
-  let attempt = 0;
-  const maxAttempts = 3;
-  const backoff = [1000, 2000, 4000];
   let lastError: any;
   const startTime = Date.now();
-  while (attempt < maxAttempts) {
+
+  for (const model of MODELS_PRIORITY) {
+    const body: any = {
+      model,
+      messages,
+    };
+    if (options?.temperature !== undefined) body.temperature = options.temperature;
+    if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+
     try {
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
@@ -134,28 +129,29 @@ export async function generateText(
         body: JSON.stringify(body),
         signal,
       });
+      
       if (!response.ok) {
-        throw new Error(`OpenRouter error: ${response.status}`);
+        throw new Error(`OpenRouter error: ${response.status} with model ${model}`);
       }
+      
       const data = await response.json();
       const result: AIResult = {
         text: data?.choices?.[0]?.message?.content ?? '',
-        modelUsed: MODELS_PRIORITY[0],
+        modelUsed: model,
         generationTime: Date.now() - startTime,
         cached: false,
       };
+      
       storage.set(cacheKeyHash, JSON.stringify({ ...result, generationTime: Date.now() }));
       clearTimeout(timeoutId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return result;
     } catch (err) {
       lastError = err;
-      attempt++;
-      if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, backoff[attempt - 1]));
-      }
+      console.warn(`OpenRouter failed with model ${model}, trying next...`, err);
     }
   }
+
   clearTimeout(timeoutId);
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
   throw lastError;

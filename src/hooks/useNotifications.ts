@@ -2,16 +2,21 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '@/src/services/supabase/client';
 import { useAuthStore } from '@/src/stores/authStore';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+if (!isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export function useNotifications() {
   const { user } = useAuthStore();
@@ -19,7 +24,7 @@ export function useNotifications() {
   const responseListener = useRef<Notifications.Subscription>();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isExpoGo) return;
 
     registerForPushNotificationsAsync().then(token => {
       if (token) savePushToken(user.id, token);

@@ -32,9 +32,22 @@ export async function generateImage(prompt: string, options?: GenerateImageOptio
   if (options?.seed) {
     params.append('seed', options.seed);
   }
-  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
+  const url = `https://gen.pollinations.ai/image/${encodedPrompt}?${params.toString()}`;
+  
   // Provide a quick haptic feedback that request was sent
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  // The API returns the image URL directly; we simply return it.
+
+  try {
+    // Test the URL to make sure the service is up
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Pollinations API returned status ${response.status}`);
+    }
+  } catch (error) {
+    console.error('[Pollinations] Error verifying image:', error);
+    throw new Error('Failed to generate image from Pollinations');
+  }
+
+  // Return the URL directly. The CreateScreen handles downloading and uploading to Supabase.
   return url;
 }

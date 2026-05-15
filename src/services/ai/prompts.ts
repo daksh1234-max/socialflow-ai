@@ -45,7 +45,7 @@ export interface HookPromptParams {
 }
 
 export function buildHookPrompt({ topic, style }: HookPromptParams): string {
-  return `Create a captivating ${style} hook for a social‑media post about "${topic}".`;
+  return `The topic is '${topic}'. The tone is '${style}'. Generate 2-3 bold opening hooks for social media.`;
 }
 
 export interface CTAPromptParams {

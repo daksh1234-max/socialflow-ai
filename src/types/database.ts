@@ -43,6 +43,9 @@ export interface Database {
           result: string
           generation_type: string
           model_used: string | null
+          tokens_used: number | null
+          metadata: Json | null
+          platform: string | null
           created_at: string
         }
         Insert: {
@@ -52,6 +55,9 @@ export interface Database {
           result: string
           generation_type: string
           model_used?: string | null
+          tokens_used?: number | null
+          metadata?: Json | null
+          platform?: string | null
           created_at?: string
         }
         Update: {
@@ -61,6 +67,9 @@ export interface Database {
           result?: string
           generation_type?: string
           model_used?: string | null
+          tokens_used?: number | null
+          metadata?: Json | null
+          platform?: string | null
           created_at?: string
         }
       }
@@ -257,6 +266,12 @@ export interface Database {
           p_platform: string
         }
         Returns: Json
+      }
+      decrement_ai_credits: {
+        Args: {
+          target_user_id: string
+        }
+        Returns: boolean
       }
     }
     Enums: {

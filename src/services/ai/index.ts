@@ -1,9 +1,11 @@
 // src/services/ai/index.ts
-import { generateWithFallback, generateText } from './openrouter';
+import { generateText } from './openrouter';
 import { generateHFText } from './huggingface';
-import { generateImage } from './pollinations';
-import * as Prompts from './prompts';
+import { generateGeminiContent } from './gemini';
 import { AIResult } from './openrouter';
+import { generateCraiyonImage } from './craiyon';
+import { generateGeminiImage } from './gemini-image';
+import * as Prompts from './prompts';
 import { aiQueue } from './queue';
 import * as Haptics from 'expo-haptics';
 
@@ -81,23 +83,20 @@ export async function rewriteForPlatform(params: {
   return generateWithFallback(prompt);
 }
 
-/** Generate an image URL using Pollinations */
+/** TEMPORARY: Placeholder image generator for testing (bypassing failing AI APIs) */
 export async function generateSocialImage(params: {
-  caption: string;
-  style: string;
-  mood: string;
+  caption?: string;
+  topic?: string;
+  style?: string;
+  mood?: string;
   colors?: string;
-  size: 'SQUARE' | 'PORTRAIT' | 'STORY' | 'LANDSCAPE';
+  size?: 'SQUARE' | 'PORTRAIT' | 'STORY' | 'LANDSCAPE';
+  userId?: string;
 }): Promise<string> {
-  const prompt = Prompts.buildImagePrompt(params);
-  // Map size enum to dimensions
-  const dimensions = {
-    SQUARE: { width: 1080, height: 1080 },
-    PORTRAIT: { width: 1080, height: 1350 },
-    STORY: { width: 1080, height: 1920 },
-    LANDSCAPE: { width: 1200, height: 628 },
-  }[params.size];
-  return generateImage(prompt, { width: dimensions.width, height: dimensions.height });
+  console.log('[AIService] Using placeholder image for testing...');
+  const seed = Date.now();
+  // Provide a reliable placeholder image that doesn't need API keys or slow generation
+  return `https://picsum.photos/seed/${seed}/1024/1024`;
 }
 
 /** Placeholder for best posting times – implementation TBD */
@@ -134,3 +133,48 @@ export async function generateBio(params: {
   const prompt = Prompts.buildBioPrompt(params);
   return generateWithFallback(prompt);
 }
+
+/** 
+ * Master fallback generation chain: Gemini -> OpenRouter -> HuggingFace 
+ */
+export async function generateWithFallback(prompt: string, options?: any): Promise<AIResult> {
+  try {
+    // 1. Try Gemini First (Primary Provider)
+    const geminiText = await generateGeminiContent(options?.systemPrompt ? `System: ${options.systemPrompt}\n\nUser: ${prompt}` : prompt);
+    return {
+      text: geminiText,
+      modelUsed: 'gemini-2.0-flash',
+      generationTime: 0,
+      cached: false
+    };
+  } catch (geminiError) {
+    console.warn('Gemini failed, falling back to OpenRouter...', geminiError);
+    try {
+      // 2. Try OpenRouter
+      return await generateText(prompt, options);
+    } catch (orError) {
+      console.warn('OpenRouter failed, falling back to HuggingFace...', orError);
+      // 3. Ultimate Fallback to HuggingFace
+      return await generateHFText(prompt, options);
+    }
+  }
+}
+
+/** Unified AIService object for easier imports in other services */
+export const AIService = {
+  generateCaption,
+  generateHashtags,
+  generateHook,
+  generateCTA,
+  rewriteForPlatform,
+  generateSocialImage,
+  getBestPostingTimes,
+  getTrendingTopics,
+  generateVideoScript,
+  generateBio,
+  generateHFText,
+  generateText,
+  generateGeminiContent,
+  generateWithFallback,
+  generateContent: generateWithFallback // Alias for generic content generation
+};

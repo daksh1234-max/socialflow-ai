@@ -1,19 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Share, Clipboard } from 'react-native';
-import { 
-  Copy, 
-  Edit3, 
-  RefreshCw, 
-  Heart, 
-  Share2, 
-  Send, 
-  Maximize2,
-  Check,
-  Instagram,
-  Facebook,
-  Linkedin,
-  Twitter
-} from 'lucide-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { 
   useAnimatedStyle, 
   useSharedValue, 
@@ -36,11 +23,11 @@ interface AIResultCardProps {
   className?: string;
 }
 
-const PLATFORM_ICONS: Record<string, any> = {
-  instagram: Instagram,
-  facebook: Facebook,
-  linkedin: Linkedin,
-  twitter: Twitter,
+const PLATFORM_ICONS: Record<string, string> = {
+  instagram: 'photo-camera',
+  facebook: 'facebook',
+  linkedin: 'business-center',
+  twitter: 'chat-bubble',
 };
 
 export function AIResultCard({ 
@@ -96,28 +83,36 @@ export function AIResultCard({
     transform: [{ rotate: `${rotation.value}deg` }]
   }));
 
-  const PlatformIcon = PLATFORM_ICONS[platform.toLowerCase()] || Instagram;
+  const PlatformIcon = PLATFORM_ICONS[platform.toLowerCase()];
 
   return (
     <GlassCard className={cn('mb-4 overflow-hidden', className)}>
       <View className="flex-row justify-between items-center mb-4">
         <View className="flex-row items-center">
-          <View className="bg-primary/20 p-2 rounded-lg mr-3">
-            <PlatformIcon size={16} color="#818CF8" />
+          <View 
+            className="p-2 rounded-lg mr-3"
+            style={{ backgroundColor: 'rgba(129, 140, 248, 0.2)' }}
+          >
+            <MaterialIcons 
+              name={PLATFORM_ICONS[platform.toLowerCase()] as any} 
+              size={16} 
+              color="#818CF8" 
+            />
           </View>
           <View>
             <Text className="text-textPrimary font-bold text-sm capitalize">{type}</Text>
             <Text className="text-textSecondary text-[10px] uppercase tracking-widest">{platform}</Text>
           </View>
         </View>
-        <Badge variant="secondary" className="bg-surfaceHighlight/50">
-          <Text className={cn('text-[10px] font-bold', getCharCountColor())}>
-            {charCount} chars
-          </Text>
-        </Badge>
+        <Badge 
+          variant="secondary" 
+          className={cn(getCharCountColor())}
+          style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)' }}
+          label={`${charCount} chars`} 
+        />
       </View>
 
-      <View className="bg-background/40 rounded-2xl p-4 border border-white/5 mb-4">
+      <View className="rounded-2xl p-4 border border-white/5 mb-4" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
         {isEditing ? (
           <TextInput
             className="text-textPrimary text-base leading-relaxed"
@@ -139,7 +134,7 @@ export function AIResultCard({
             onPress={handleCopy}
             className="p-2.5 bg-surfaceHighlight rounded-xl border border-white/10"
           >
-            {isCopied ? <Check size={18} color="#10B981" /> : <Copy size={18} color="#94A3B8" />}
+            {isCopied ? <MaterialIcons name="check" size={18} color="#10B981" /> : <MaterialIcons name="content-copy" size={18} color="#94A3B8" />}
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -149,7 +144,7 @@ export function AIResultCard({
               isEditing ? 'bg-primary border-primary' : 'bg-surfaceHighlight border-white/10'
             )}
           >
-            <Edit3 size={18} color={isEditing ? '#fff' : '#94A3B8'} />
+            <MaterialIcons name="edit" size={18} color={isEditing ? '#fff' : '#94A3B8'} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -157,7 +152,7 @@ export function AIResultCard({
             className="p-2.5 bg-surfaceHighlight rounded-xl border border-white/10"
           >
             <Animated.View style={animatedRotateStyle}>
-              <RefreshCw size={18} color="#94A3B8" />
+              <MaterialIcons name="refresh" size={18} color="#94A3B8" />
             </Animated.View>
           </TouchableOpacity>
         </View>
@@ -167,14 +162,14 @@ export function AIResultCard({
             onPress={handleFavorite}
             className="p-2.5 bg-surfaceHighlight rounded-xl border border-white/10"
           >
-            <Heart size={18} color={isFavorited ? '#EF4444' : '#94A3B8'} fill={isFavorited ? '#EF4444' : 'transparent'} />
+            <MaterialIcons name={isFavorited ? "favorite" : "favorite-border"} size={18} color={isFavorited ? '#EF4444' : '#94A3B8'} />
           </TouchableOpacity>
 
           <TouchableOpacity 
             onPress={handleShare}
             className="p-2.5 bg-surfaceHighlight rounded-xl border border-white/10"
           >
-            <Share2 size={18} color="#94A3B8" />
+            <MaterialIcons name="share" size={18} color="#94A3B8" />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -182,7 +177,7 @@ export function AIResultCard({
             className="bg-indigo-600 px-4 rounded-xl flex-row items-center"
             style={{ backgroundColor: '#4F46E5' }}
           >
-            <Send size={16} color="#fff" className="mr-2" />
+            <MaterialIcons name="send" size={16} color="#fff" className="mr-2" />
             <Text className="text-white font-bold text-sm">Use</Text>
           </TouchableOpacity>
         </View>

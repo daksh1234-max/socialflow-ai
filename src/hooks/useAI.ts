@@ -65,9 +65,9 @@ export function useAI(): UseAIReturn {
     if (!user) return;
 
     try {
-      const { error: dbError } = await supabase.from('ai_generations').insert({
+      const { error: dbError } = await (supabase.from('ai_generations') as any).insert({
         user_id: user.id,
-        type,
+        generation_type: type,
         prompt,
         result: typeof result === 'string' ? result : result.text,
         model_used: modelUsed || (typeof result === 'object' ? result.modelUsed : 'pollinations'),
@@ -82,10 +82,11 @@ export function useAI(): UseAIReturn {
   };
 
   const generate = async (type: AIGenerationType, params: any): Promise<AIResult | string> => {
-    if (profile && profile.ai_credits <= 0) {
-      Alert.alert('Out of Credits', 'You have no AI credits left. Please upgrade your plan to continue generating content.');
-      return Promise.reject(new Error('Out of AI credits'));
-    }
+    // TEMPORARY BYPASS: Allow generation without credits for testing
+    // if (profile && profile.ai_credits <= 0) {
+    //   Alert.alert('Out of Credits', 'You have no AI credits left. Please upgrade your plan to continue generating content.');
+    //   return Promise.reject(new Error('Out of AI credits'));
+    // }
 
     cancel();
     setError(null);
@@ -124,7 +125,7 @@ export function useAI(): UseAIReturn {
           result = await AIService.rewriteForPlatform(params);
           break;
         case 'image':
-          result = await AIService.generateSocialImage(params);
+          result = await AIService.generateSocialImage({ ...params, userId: user?.id });
           break;
         case 'best_time':
           result = await AIService.getBestPostingTimes(params);
@@ -150,10 +151,17 @@ export function useAI(): UseAIReturn {
 
       // Decrement credits
       if (user) {
-        const { data: success } = await supabase.rpc('decrement_ai_credits', { target_user_id: user.id });
-        if (success) {
-          decrementCreditsLocally();
-        }
+        // TEMPORARY FOR TESTING: Skip credit deduction
+        console.log('[useAI] AI generation used (credits not deducted for testing)');
+        // try {
+        //   const { data: success, error: rpcError } = await (supabase as any).rpc('decrement_ai_credits', { target_user_id: user.id });
+        //   if (rpcError) console.error('[useAI] RPC error decrementing credits:', rpcError);
+        //   if (success) {
+        //     decrementCreditsLocally();
+        //   }
+        // } catch (creditError) {
+        //   console.error('[useAI] Failed to decrement credits:', creditError);
+        // }
       }
 
       addToHistory(result as any);

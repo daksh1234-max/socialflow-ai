@@ -92,25 +92,30 @@ export default function CreateScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const safeTopic = prompt || generatedContent || "Social media post";
+      
       const result = await generate(type as any, {
-        topic: prompt || generatedContent,
+        topic: safeTopic,
         platform: postingPlatform.toLowerCase(),
         content: generatedContent,
         ...extraParams
       });
       
       if (type === 'image') {
-        const url = typeof result === 'string' ? result : (result as any).url;
+        let finalUrl = typeof result === 'string' ? result : (result as any).url;
         
-        // Upload to Supabase for permanent storage
-        const permanentUrl = await StorageService.uploadFromUrl(
-          url, 
-          `posts/${user!.id}/${Date.now()}_ai.png`
-        );
+        // Only upload if it's not already a permanent Supabase URL
+        if (finalUrl && !finalUrl.includes('supabase.co')) {
+          console.log('[CreateScreen] Uploading external AI image to Supabase...');
+          finalUrl = await StorageService.uploadFromUrl(
+            finalUrl, 
+            `posts/${user!.id}/${Date.now()}_ai.png`
+          );
+        }
         
-        setImageUri(permanentUrl);
+        setImageUri(finalUrl);
         setStep(3);
-        showToast('AI Image saved to cloud!', 'success');
+        showToast('AI Image ready!', 'success');
       } else {
         const newContent = typeof result === 'string' ? result : result.text;
         setGeneratedContent(prev => prev ? `${prev}\n\n${newContent}` : newContent);
@@ -118,7 +123,8 @@ export default function CreateScreen() {
         showToast('AI magic applied!', 'success');
       }
     } catch (e: any) {
-      showToast('AI assist failed', 'error');
+      console.error('[CreateScreen] AI assist failed:', e);
+      showToast('AI assist failed: ' + (e.message || 'Unknown error'), 'error');
     } finally {
       setIsGenerating(false);
     }

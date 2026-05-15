@@ -9,11 +9,11 @@ interface BadgeProps extends ViewProps {
 
 export function Badge({ label, variant = 'primary', className, ...props }: BadgeProps) {
   const variants = {
-    primary: 'bg-primary/20 text-primaryGlow',
+    primary: 'bg-primary text-primaryGlow',
     secondary: 'bg-surfaceHighlight text-textSecondary',
-    success: 'bg-success/20 text-success',
-    warning: 'bg-warning/20 text-warning',
-    error: 'bg-error/20 text-error',
+    success: 'bg-success text-success',
+    warning: 'bg-warning text-warning',
+    error: 'bg-error text-error',
   };
 
   return (
