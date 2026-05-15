@@ -83,6 +83,29 @@ export async function rewriteForPlatform(params: {
   return generateWithFallback(prompt);
 }
 
+/**
+ * Generate an image using Pollinations AI based on a user prompt.
+ * Returns a direct URL to the generated image.
+ */
+export async function generateImage(prompt: string): Promise<string> {
+  // Validate prompt
+  if (!prompt || prompt.trim() === '') {
+    throw new Error('Please enter a prompt');
+  }
+  
+  // Encode prompt for URL
+  const encodedPrompt = encodeURIComponent(prompt.trim());
+  
+  // Generate unique seed for different images each time
+  const seed = Date.now();
+  
+  // Pollinations returns image directly from URL
+  // Returning instantly without verification to save time and API calls
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
+}
+
+
+
 /** TEMPORARY: Placeholder image generator for testing (bypassing failing AI APIs) */
 export async function generateSocialImage(params: {
   caption?: string;
@@ -93,11 +116,9 @@ export async function generateSocialImage(params: {
   size?: 'SQUARE' | 'PORTRAIT' | 'STORY' | 'LANDSCAPE';
   userId?: string;
 }): Promise<string> {
-  console.log('[AIService] Using placeholder image for testing...');
-  const seed = Date.now();
-  // Provide a reliable placeholder image that doesn't need API keys or slow generation
-  return `https://picsum.photos/seed/${seed}/1024/1024`;
+  return generateImage(params.caption || params.topic || 'Social media post');
 }
+
 
 /** Placeholder for best posting times – implementation TBD */
 export async function getBestPostingTimes(params: { postHistory: any[]; platform: string }): Promise<AIResult> {
@@ -167,7 +188,9 @@ export const AIService = {
   generateHook,
   generateCTA,
   rewriteForPlatform,
+  generateImage,
   generateSocialImage,
+
   getBestPostingTimes,
   getTrendingTopics,
   generateVideoScript,

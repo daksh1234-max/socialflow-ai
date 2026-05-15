@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, ScrollView, Image, Modal, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+
+
 import * as ImagePicker from 'expo-image-picker';
 import { ScreenWrapper } from '@/src/components/layout/ScreenWrapper';
 import { Header } from '@/src/components/layout/Header';
@@ -34,10 +37,12 @@ import { z } from 'zod';
 import { PostPreview } from '@/src/components/previews/PostPreview';
 
 const PLATFORMS = [
-  { name: 'Twitter', max: 280, opt: '70-120' },
-  { name: 'Facebook', max: 63206, opt: '40-80' },
-  { name: 'LinkedIn', max: 3000, opt: '200-400' }
+  { name: 'Twitter', max: 280, opt: '70-120', icon: 'chat-bubble' },
+  { name: 'Facebook', max: 63206, opt: '40-80', icon: 'facebook' },
+  { name: 'Instagram', max: 2200, opt: '150-300', icon: 'photo-camera' },
+  { name: 'LinkedIn', max: 3000, opt: '200-400', icon: 'business-center' }
 ];
+
 
 const SUGGESTIONS = [
   { label: 'Add hook 🪝', type: 'hook' },
@@ -52,6 +57,7 @@ const createPostSchema = z.object({
 });
 
 export default function CreateScreen() {
+  const { width } = Dimensions.get('window');
   const { user, profile } = useAuthStore();
   const { draft, setDraft } = usePostStore();
   const [step, setStep] = useState(1);
@@ -64,7 +70,11 @@ export default function CreateScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAiSheet, setShowAiSheet] = useState(false);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [tempImageUrl, setTempImageUrl] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ content?: string; platform?: string }>({});
+
 
   useEffect(() => {
     // Sync local state to store whenever it changes
@@ -88,6 +98,14 @@ export default function CreateScreen() {
 
   const handleAiAction = async (type: string, extraParams: any = {}) => {
     setShowAiSheet(false);
+    
+    if (type === 'image') {
+      setImagePrompt(generatedContent || prompt || '');
+      setTempImageUrl(null);
+      setIsImageModalVisible(true);
+      return;
+    }
+
     setIsGenerating(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -101,27 +119,10 @@ export default function CreateScreen() {
         ...extraParams
       });
       
-      if (type === 'image') {
-        let finalUrl = typeof result === 'string' ? result : (result as any).url;
-        
-        // Only upload if it's not already a permanent Supabase URL
-        if (finalUrl && !finalUrl.includes('supabase.co')) {
-          console.log('[CreateScreen] Uploading external AI image to Supabase...');
-          finalUrl = await StorageService.uploadFromUrl(
-            finalUrl, 
-            `posts/${user!.id}/${Date.now()}_ai.png`
-          );
-        }
-        
-        setImageUri(finalUrl);
-        setStep(3);
-        showToast('AI Image ready!', 'success');
-      } else {
-        const newContent = typeof result === 'string' ? result : result.text;
-        setGeneratedContent(prev => prev ? `${prev}\n\n${newContent}` : newContent);
-        setStep(3);
-        showToast('AI magic applied!', 'success');
-      }
+      const newContent = typeof result === 'string' ? result : result.text;
+      setGeneratedContent(prev => prev ? `${prev}\n\n${newContent}` : newContent);
+      setStep(3);
+      showToast('AI magic applied!', 'success');
     } catch (e: any) {
       console.error('[CreateScreen] AI assist failed:', e);
       showToast('AI assist failed: ' + (e.message || 'Unknown error'), 'error');
@@ -129,6 +130,43 @@ export default function CreateScreen() {
       setIsGenerating(false);
     }
   };
+
+  const performImageGeneration = async () => {
+    if (!imagePrompt || imagePrompt.trim().length === 0) {
+      Alert.alert('Error', 'Please enter a prompt');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      console.log('[CreateScreen] Generating AI image with prompt:', imagePrompt);
+      const result = await generate('image', {
+        caption: imagePrompt.trim(),
+        platform: postingPlatform.toLowerCase()
+      });
+      
+      const imageUrl = typeof result === 'string' ? result : (result as any).url;
+      setTempImageUrl(imageUrl);
+      showToast('Image generated!', 'success');
+    } catch (error: any) {
+      // Error is already handled by useAI hook's Alert, but we can add more if needed
+      console.error('[CreateScreen] Image generation failed:', error);
+    }
+  };
+
+
+  const handleUseImage = async () => {
+    if (!tempImageUrl) return;
+    
+    // Pollinations URLs are direct and public, no need to upload to Supabase
+    setImageUri(tempImageUrl);
+    setIsImageModalVisible(false);
+    setStep(3);
+    showToast('AI Image applied!', 'success');
+  };
+
+
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -218,7 +256,7 @@ export default function CreateScreen() {
         <View className={cn("gap-y-md", step !== 1 && "opacity-50")}>
           <View className="flex-row justify-between items-center">
             <Text className="text-xl font-bold text-textPrimary">1. What's on your mind?</Text>
-            {user && (
+            {user && (profile?.ai_credits || 0) > 0 && (
               <View className={cn("px-3 py-1 rounded-full", (profile?.ai_credits || 0) < 5 ? "bg-red-500/20" : "bg-indigo-500/20")}>
                 <Text className={cn("text-xs font-bold", (profile?.ai_credits || 0) < 5 ? "text-red-400" : "text-indigo-400")}>
                   🤖 {profile?.ai_credits || 0} credits left
@@ -236,20 +274,36 @@ export default function CreateScreen() {
             textAlignVertical="top"
           />
           
-          <Text className="text-textSecondary mb-xs">Select Platform</Text>
-          <View className="flex-row gap-x-sm mb-md">
-            {PLATFORMS.map((p) => (
-              <TouchableOpacity 
-                key={p.name} 
-                onPress={() => setPostingPlatform(p.name)}
-                className={cn(
-                  "flex-1 py-sm rounded-lg border items-center", 
-                  postingPlatform === p.name ? 'bg-primary/20 border-primary' : 'bg-surface border-white/5'
-                )}
-              >
-                <Text className={postingPlatform === p.name ? 'text-primary font-semibold' : 'text-textSecondary'}>{p.name}</Text>
-              </TouchableOpacity>
-            ))}
+          <View className="mb-md">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              {PLATFORMS.map((p) => (
+                <TouchableOpacity 
+                  key={p.name} 
+                  onPress={() => {
+                    setPostingPlatform(p.name);
+                    Haptics.selectionAsync();
+                  }}
+                  style={{ width: width / 3.5 }}
+                  className={cn(
+                    "py-sm rounded-xl border items-center mr-sm", 
+                    postingPlatform === p.name ? 'bg-primary/20 border-primary' : 'bg-surface border-white/5'
+                  )}
+                >
+                  <MaterialIcons 
+                    name={p.icon as any} 
+                    size={20} 
+                    color={postingPlatform === p.name ? '#A78BFA' : '#94A3B8'} 
+                    style={{ marginBottom: 4 }}
+                  />
+                  <Text className={cn(
+                    "text-[10px] font-bold uppercase tracking-tighter",
+                    postingPlatform === p.name ? 'text-primary' : 'text-textSecondary'
+                  )}>
+                    {p.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
 
           {step === 1 && (
@@ -446,6 +500,104 @@ export default function CreateScreen() {
           </TouchableOpacity>
         </View>
       </BottomSheet>
+      <Modal
+        visible={isImageModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsImageModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/60 justify-end">
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="w-full"
+          >
+            <View className="bg-surface rounded-t-3xl p-xl gap-y-lg border-t border-white/10">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-white font-bold text-2xl">AI Image Studio</Text>
+                <TouchableOpacity onPress={() => setIsImageModalVisible(false)} className="bg-white/10 p-2 rounded-full">
+                  <X size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {tempImageUrl ? (
+                <View className="gap-y-lg">
+                  <View className="w-full aspect-square rounded-2xl overflow-hidden border border-white/10 bg-black/20">
+                    <Image 
+                      source={{ uri: tempImageUrl }} 
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                    {isGenerating && (
+                      <View className="absolute inset-0 bg-black/40 items-center justify-center">
+                        <ActivityIndicator size="large" color="#818CF8" />
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="flex-row gap-x-md">
+                    <TouchableOpacity 
+                      onPress={performImageGeneration}
+                      disabled={isGenerating}
+                      className="flex-1 bg-surfaceHighlight py-4 rounded-xl items-center border border-white/5"
+                    >
+                      <View className="flex-row items-center">
+                        <RefreshCw size={18} color="#fff" className="mr-2" />
+                        <Text className="text-white font-bold">Regenerate</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      onPress={handleUseImage}
+                      disabled={isGenerating}
+                      className="flex-1 bg-indigo-600 py-4 rounded-xl items-center shadow-lg shadow-indigo-500/30"
+                    >
+                      <View className="flex-row items-center">
+                        <CheckCircle2 size={18} color="#fff" className="mr-2" />
+                        <Text className="text-white font-bold">Use This Image</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View className="gap-y-lg">
+                  <Text className="text-textSecondary">Describe the image you want to generate for your post.</Text>
+                  
+                  <View className="bg-black/20 rounded-xl border border-white/10 p-md">
+                    <TextInput
+                      multiline
+                      numberOfLines={4}
+                      placeholder="e.g. A futuristic city with flying cars in cyberpunk style..."
+                      placeholderTextColor="#64748B"
+                      className="text-white text-base h-24"
+                      value={imagePrompt}
+                      onChangeText={setImagePrompt}
+                      textAlignVertical="top"
+                    />
+                  </View>
+
+                  <Button 
+                    onPress={performImageGeneration}
+                    loading={isGenerating}
+                    disabled={!imagePrompt.trim()}
+                    icon={<Sparkles size={18} color="#fff" />}
+                    className="bg-indigo-600"
+                  >
+                    Generate AI Image
+                  </Button>
+
+                  <TouchableOpacity 
+                    onPress={() => setIsImageModalVisible(false)}
+                    className="py-2 items-center"
+                  >
+                    <Text className="text-textSecondary">Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </ScreenWrapper>
+
   );
 }
